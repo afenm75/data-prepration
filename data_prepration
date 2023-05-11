@@ -1,0 +1,47 @@
+import numpy as np
+import torch
+import os
+import pandas as pd
+
+# Define the path to the directory containing the Excel files
+directory = '/content/drive/MyDrive/sampsa'
+
+# Get a list of all files in the directory
+file_list = os.listdir(directory)
+
+tensors = {}
+array_3d_list=[]
+lables = []
+# Filter the list to only include Excel files
+excel_files = [file for file in file_list if file.endswith('.xls')]
+i=0
+for file in excel_files:
+    i=i+1
+    print("start " + file)
+    path = os.path.join(directory, file)
+    # This will remove .xls and add .txt instead and provide us with txt address
+    path_txt = path[:-4] + '.txt'
+    excel_data = pd.read_excel(path, engine='xlrd',sheet_name=None)
+    for sheet_name, sheet_data in excel_data.items():
+        event_col = getting_event_coulnm(path_txt)
+        sheet_data = sheet_data.iloc[0:len(event_col), :]
+        sheet_data = sheet_data.assign(Event=event_col)
+        sheet_data = average(sheet_data)
+        #sheet_data = sheet_data.apply(pd.to_numeric, errors='coerce') # convert to numeric
+        tensors[sheet_name] = torch.tensor(sheet_data.values, dtype=torch.float32)
+        #print(sheet_data.values)
+    labels_file = pd.read_excel('/content/drive/MyDrive/sampsa/labels.xlsx', header=0)
+    # Find the index where the condition is true
+    index = labels_file.index[labels_file['new_id'].astype(str).str.strip() == str(file[:-4]).strip()].tolist()[0]
+    print(index)    
+    neu = labels_file.iloc[index]['neu_daff_prs']
+    scz = labels_file.iloc[index]['scz_prs']
+    lables.append([neu,scz])
+    array_list = [tensor.numpy() for tensor in tensors.values()]
+    array_3d = np.stack(array_list[0:18], axis=2)
+    array_3d_list.append(array_3d)
+    array_4d = np.stack(array_3d_list, axis=0)
+    
+    print("end " + file)
+    print(f"{i*100/57:.2f}% complete")
+my_tensor = torch.tensor(array_4d)
